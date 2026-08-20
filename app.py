@@ -9,36 +9,38 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", "mon_secret_123")
 ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID", "1193134093891632")
 
-@app.route('/webhook', methods=['GET'])
-def verify_webhook():
-    mode = request.args.get('hub.mode')
-    token = request.args.get('hub.verify_token')
-    challenge = request.args.get('hub.challenge')
+@app.route('/webhook', methods=['GET', 'POST'])
+def webhook():
+    # 1. Validation du Webhook par Meta (GET)
+    if request.method == 'GET':
+        mode = request.args.get('hub.mode')
+        token = request.args.get('hub.verify_token')
+        challenge = request.args.get('hub.challenge')
 
-    if mode == 'subscribe' and token == VERIFY_TOKEN:
-        return challenge, 200
-    return "Échec de vérification", 403
+        if mode == 'subscribe' and token == VERIFY_TOKEN:
+            return str(challenge), 200
+        return "Échec de vérification", 403
 
-@app.route('/webhook', methods=['POST'])
-def receive_message():
-    data = request.get_json()
-    try:
-        entries = data.get('entry', [])
-        for entry in entries:
-            for change in entry.get('changes', []):
-                value = change.get('value', {})
-                messages = value.get('messages', [])
-                if messages:
-                    msg = messages[0]
-                    sender_id = msg.get('from')
-                    if msg.get('type') == 'text':
-                        text = msg.get('text', {}).get('body', '')
-                        reply = generate_response(text)
-                        send_whatsapp_message(sender_id, reply)
-    except Exception as e:
-        print(f"Erreur : {e}")
+    # 2. Réception des messages WhatsApp (POST)
+    elif request.method == 'POST':
+        data = request.get_json()
+        try:
+            entries = data.get('entry', [])
+            for entry in entries:
+                for change in entry.get('changes', []):
+                    value = change.get('value', {})
+                    messages = value.get('messages', [])
+                    if messages:
+                        msg = messages[0]
+                        sender_id = msg.get('from')
+                        if msg.get('type') == 'text':
+                            text = msg.get('text', {}).get('body', '')
+                            reply = generate_response(text)
+                            send_whatsapp_message(sender_id, reply)
+        except Exception as e:
+            print(f"Erreur : {e}")
 
-    return jsonify({"status": "success"}), 200
+        return jsonify({"status": "success"}), 200
 
 def generate_response(user_text):
     t = user_text.lower().strip()
